@@ -93,23 +93,27 @@ class TagSchema(ma.Schema):
 # User model
 class User(db.Model):
     id =            db.Column(db.Integer, primary_key=True)
+    admin =         db.Column(db.Boolean, default=False)
     mail =          db.Column(db.String(128), unique=True, nullable=False)
-    passwrod =      db.Column(db.String(128), nullable=False)
+    password =      db.Column(db.String(128), nullable=False)
     created =       db.Column(db.DateTime, nullable=False, default=datetime.utcnow())
-    img =           db.relationship('Userimg', secondary='user_imgs', backref=db.backref('user', lazy='dynamic'))
+    img =           db.relationship('Userimg', secondary='user_imgs', backref=db.backref('users', lazy='dynamic'))
 
     def __repr__(self):
-        return f"User('ID: {self.id}', 'Mail: {self.mail}', 'Date Created: {self.created}')"
+        return f"User('ID: {self.id}', 'Is Admin: {self.admin}', 'Mail: {self.mail}', 'Date Created: {self.created}')"
 
 # User Schema
 class UserSchema(ma.Schema):
   class Meta:
-    fields = ('id', 'mail', 'password', 'created', 'img')
+    fields = ('id', 'admin', 'mail', 'password', 'created', 'img')
 
 # User Images
 class Userimg(db.Model):
     id =            db.Column(db.Integer, primary_key=True)
     img =           db.Column(db.String(20), nullable=False, default='default_user.jpg')
+
+    def __repr__(self):
+        return f"User('ID: {self.id}', 'IMG: {self.img}')"
 
 # User img Schema
 class UserImgSchema(ma.Schema):

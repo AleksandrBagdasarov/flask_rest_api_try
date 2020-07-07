@@ -1,11 +1,35 @@
 
 from datetime import datetime
+import jwt
 from flask import jsonify, request
+from functools import wraps
 
 from myapi import app, bcrypt, db
-from myapi.models import Product, ProductSchema
+from myapi.models import Product, Productimg, ProductSchema
 from myapi.models import Tag, TagSchema
-from myapi.models import User, UserSchema
+from myapi.models import User, Userimg, UserSchema
+
+# custom decorator to login required
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+
+        if 'x-access-token' in request.headers:
+            token = request.headers['x-access-token']
+
+        if not token:
+            return jsonify({'message' : 'Token is missing!'}), 401
+
+        try: 
+            data = jwt.decode(token, app.config['SECRET_KEY'])
+            current_user = User.query.filter_by(id=data['id']).first()
+        except:
+            return jsonify({'message' : 'Token is invalid!'}), 401
+
+        return f(current_user, *args, **kwargs)
+
+    return decorated
 
 
 ########## PRODUCT ##########
@@ -15,12 +39,14 @@ products_schema = ProductSchema(many=True)
 
 # Create a product
 @app.route('/product', methods=['POST'])
+@token_required
 def add_product():
   name = request.json['name']
   description = request.json['description']
   price = request.json['price']
+  img = Productimg.query.get(1).img
 
-  new_product = Product(name, description, price)
+  new_product = Product(name, description, price, img)
 
   db.session.add(new_product)
   db.session.commit()
@@ -127,15 +153,28 @@ users_schema = UserSchema(many=True)
 # Create a User
 @app.route('/user', methods=['POST'])
 def add_user():
+  admin = request.json['admin']
   mail = request.json['mail']
-  passwrod = bcrypt.generate_password_hash(request.json['passwrod']).decode('UTF-8')
+  password = bcrypt.generate_password_hash(request.json['password']).decode('UTF-8')
 
-  new_user = User(mail, passwrod)
+  new_user = User(admin=admin, mail=mail, password=password)
 
   db.session.add(new_user)
+
+  default_img = Userimg.query.get(1).users
+  
+  default_img.append(User.query.filter(User.mail==mail).first())
+
+  #User.query.filter(User.mail==mail).first().img = Userimg.query.get(1).img
   db.session.commit()
 
   return user_schema.jsonify(new_user)
+
+
+# Upload User Img
+@app.route('/user/image', methods=['POST'])
+def upload_user_img():
+  return ''
 
 # Get All Users
 @app.route('/user', methods=['GET'])
@@ -159,11 +198,25 @@ def update_user(id):
   user = User.query.get(id)
 
   name = request.json['name']
-  passwrod = bcrypt.generate_password_hash(request.json['passwrod']).decode('UTF-8')
+  password = bcrypt.generate_password_hash(request.json['password']).decode('UTF-8')
 
   user.name = name
-  user.passwrod = passwrod
+  user.password = password
 
   db.session.commit()
 
   return user_schema.jsonify(user)
+
+
+@app.route('/user/<id>', methods=['DELETE'])
+def delete_user(id):
+
+    user = User.query.filter_by(id=id).first()
+
+    if not user:
+        return jsonify({'message' : 'No user found!'})
+
+    db.session.delete(user)
+    db.session.commit()
+
+    return jsonify({'message' : 'The user has been deleted!'})
